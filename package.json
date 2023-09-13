@@ -1,0 +1,23 @@
+{
+  "name": "tensorflowjs-hand-detection",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite src/"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "ngrok": "^5.0.0-beta.2",
+    "typescript": "^5.2.2",
+    "vite": "^4.4.9"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^6.20.2",
+    "@tensorflow-models/hand-pose-detection": "^2.0.1",
+    "@tensorflow/tfjs-backend-webgl": "^4.11.0",
+    "@tensorflow/tfjs-converter": "^4.11.0",
+    "@tensorflow/tfjs-core": "^4.11.0"
+  }
+}
