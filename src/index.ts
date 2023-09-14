@@ -55,20 +55,44 @@ async function createBabylonScene(engine: Babylon.Engine, canvas: HTMLCanvasElem
     return { scene, xr }
 }
 
-function detectHands(xrSessionManager: Babylon.WebXRSessionManager, handDetector: handPoseDetection.HandDetector, currentFrame: XRFrame) {
+function detectHands(xrSessionManager: Babylon.WebXRSessionManager, handDetector: handPoseDetection.HandDetector, currentFrame: XRFrame, canvas: HTMLCanvasElement) {
     const textChild = document.querySelector('#dom-overlay-text')
     if (!textChild) throw new Error("Could not find DOM Overlay")
 
+    const renderingContext = canvas.getContext('webgl2')
+    if (!renderingContext) throw new Error("Could not obtain rendering context")
+
     const referenceSpace = xrSessionManager.referenceSpace
 
+    let xrCamera: XRCamera | undefined = undefined
     const viewerPose = currentFrame.getViewerPose(referenceSpace)
     for (const view of viewerPose?.views ?? []) {
-        if ((view as { camera?: any } & XRView).camera) {
-            textChild.textContent = 'Found view with camera'
+        if (view.camera) {
+            xrCamera = view.camera
+            continue
         }
     }
 
-    xrSessionManager.session.requestAnimationFrame((time, xrFrame) => detectHands(xrSessionManager, handDetector, xrFrame))
+    if (!xrCamera) throw new Error("Couldn't find view with camera")
+
+    const xrWebGLBinding = new XRWebGLBinding(xrSessionManager.session, renderingContext)
+    const cameraImage = xrWebGLBinding.getCameraImage(xrCamera)
+    if (cameraImage) {
+        textChild.textContent = 'Found camera image'
+    }
+
+    xrSessionManager.session.requestAnimationFrame((time, xrFrame) => {
+        alertOnError(() => detectHands(xrSessionManager, handDetector, xrFrame, canvas)
+        )
+    })
+}
+
+function alertOnError(func: () => void) {
+    try {
+        func()
+    } catch (e: any) {
+        window.alert(e.message)
+    }
 }
 
 async function main() {
@@ -92,7 +116,7 @@ async function main() {
     const xrSessionManager = babylonXRBase.baseExperience.sessionManager
     const xrSessionInitObserver = xrSessionManager.onXRSessionInit.addOnce((xrSession) => {
         xrSession.requestAnimationFrame((timestamp, xrFrame) => {
-            detectHands(xrSessionManager, handDetector, xrFrame)
+            alertOnError(() => detectHands(xrSessionManager, handDetector, xrFrame, canvas))
         })
     })
 
