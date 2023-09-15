@@ -155,7 +155,7 @@ function alertOnError(func: () => Promise<void>) {
 
 async function main() {
   const canvas = document.querySelector("canvas");
-  if (!canvas) throw new Error("Canvas elemet doesn't exist");
+  if (!canvas) throw new Error("Canvas element doesn't exist");
 
   const babylonEngine = await Babylon.EngineFactory.CreateAsync(canvas, {});
   const { scene: babylonScene, xr: babylonXRBase } = await createBabylonScene(
