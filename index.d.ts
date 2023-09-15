@@ -3,11 +3,12 @@ interface XRView {
 }
 
 interface XRCamera {
-
+    width: number;
+    height: number;
 }
 
 interface XRWebGLBinding {
-    getCameraImage(camera: XRCamera): any
+    getCameraImage(camera: XRCamera): WebGLTexture | null
 }
 
 namespace global {
