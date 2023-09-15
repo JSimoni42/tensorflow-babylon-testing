@@ -121,7 +121,7 @@ async function main() {
     canvas,
   );
 
-  babylonEngine.runRenderLoop(babylonScene.render);
+  babylonEngine.runRenderLoop(babylonScene.render.bind(babylonScene));
   window.addEventListener("resize", () => babylonEngine.resize());
 
   const handDetector = await handPoseDetection.createDetector(
