@@ -62,17 +62,36 @@ async function createBabylonScene(
   return { scene, xr };
 }
 
-function convertGLTextureToImage(texture: WebGLTexture, webGLContext: WebGL2RenderingContext, width: number, height: number): ImageData {
-    const frameBuffer = webGLContext.createFramebuffer()
-    webGLContext.bindFramebuffer(webGLContext.FRAMEBUFFER, frameBuffer)
-    webGLContext.framebufferTexture2D(webGLContext.FRAMEBUFFER, webGLContext.COLOR_ATTACHMENT0, webGLContext.TEXTURE_2D, texture, 0)
+function convertGLTextureToImage(
+  texture: WebGLTexture,
+  webGLContext: WebGL2RenderingContext,
+  width: number,
+  height: number,
+): ImageData {
+  const frameBuffer = webGLContext.createFramebuffer();
+  webGLContext.bindFramebuffer(webGLContext.FRAMEBUFFER, frameBuffer);
+  webGLContext.framebufferTexture2D(
+    webGLContext.FRAMEBUFFER,
+    webGLContext.COLOR_ATTACHMENT0,
+    webGLContext.TEXTURE_2D,
+    texture,
+    0,
+  );
 
-    const dataArr = new Uint8ClampedArray(width * height * 4)
-    webGLContext.readPixels(0,0,width,height,webGLContext.RGBA, webGLContext.UNSIGNED_BYTE, dataArr)
+  const dataArr = new Uint8ClampedArray(width * height * 4);
+  webGLContext.readPixels(
+    0,
+    0,
+    width,
+    height,
+    webGLContext.RGBA,
+    webGLContext.UNSIGNED_BYTE,
+    dataArr,
+  );
 
-    webGLContext.deleteFramebuffer(frameBuffer)
+  webGLContext.deleteFramebuffer(frameBuffer);
 
-    return new ImageData(dataArr, width, height)
+  return new ImageData(dataArr, width, height);
 }
 
 async function detectHands(
@@ -87,7 +106,7 @@ async function detectHands(
   const renderingContext = canvas.getContext("webgl2");
   if (!renderingContext) throw new Error("Could not obtain rendering context");
 
-  const referenceSpace = xrSessionManager.referenceSpace
+  const referenceSpace = xrSessionManager.referenceSpace;
 
   let xrCamera: XRCamera | undefined = undefined;
   const viewerPose = currentFrame.getViewerPose(referenceSpace);
@@ -100,7 +119,7 @@ async function detectHands(
 
   xrSessionManager.session.requestAnimationFrame((time, xrFrame) => {
     alertOnError(() =>
-      detectHands(xrSessionManager, handDetector, xrFrame, canvas)
+      detectHands(xrSessionManager, handDetector, xrFrame, canvas),
     );
   });
 
@@ -112,22 +131,26 @@ async function detectHands(
   );
   const cameraImage = xrWebGLBinding.getCameraImage(xrCamera);
   if (cameraImage) {
-    const imageData = convertGLTextureToImage(cameraImage, renderingContext, xrCamera.width, xrCamera.height)
-    const estimationResults = await handDetector.estimateHands(imageData)
+    const imageData = convertGLTextureToImage(
+      cameraImage,
+      renderingContext,
+      xrCamera.width,
+      xrCamera.height,
+    );
+    const estimationResults = await handDetector.estimateHands(imageData);
 
     if (estimationResults[0]) {
-        textChild.textContent = `${estimationResults[0].handedness} - handedness detected`
+      textChild.textContent = `${estimationResults[0].handedness} - handedness detected`;
     } else {
-        textChild.textContent = 'No hands detected'
+      textChild.textContent = "No hands detected";
     }
   }
 }
 
 function alertOnError(func: () => Promise<void>) {
-    func()
-        .catch((e) => {
-            window.alert(e.message)
-        })
+  func().catch((e) => {
+    window.alert(e.message);
+  });
 }
 
 async function main() {
@@ -153,7 +176,7 @@ async function main() {
     (xrSession) => {
       xrSession.requestAnimationFrame((timestamp, xrFrame) => {
         alertOnError(() =>
-          detectHands(xrSessionManager, handDetector, xrFrame, canvas)
+          detectHands(xrSessionManager, handDetector, xrFrame, canvas),
         );
       });
     },
