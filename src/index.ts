@@ -1,9 +1,8 @@
-// Tensorflow dependencies
-import "@tensorflow/tfjs-core";
-import "@tensorflow/tfjs-backend-webgl"; // Register WebGL backend.
-import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
-
+import * as mediaPipe from "@mediapipe/tasks-vision"
 import * as Babylon from "@babylonjs/core";
+
+import { alertOnError } from './utils'
+import { convertGLTextureToImage, screenToWorld } from './babylon-utils'
 
 async function createBabylonScene(
   engine: Babylon.Engine,
@@ -62,43 +61,15 @@ async function createBabylonScene(
   return { scene, xr };
 }
 
-function convertGLTextureToImage(
-  texture: WebGLTexture,
-  webGLContext: WebGL2RenderingContext,
-  width: number,
-  height: number,
-): ImageData {
-  const frameBuffer = webGLContext.createFramebuffer();
-  webGLContext.bindFramebuffer(webGLContext.FRAMEBUFFER, frameBuffer);
-  webGLContext.framebufferTexture2D(
-    webGLContext.FRAMEBUFFER,
-    webGLContext.COLOR_ATTACHMENT0,
-    webGLContext.TEXTURE_2D,
-    texture,
-    0,
-  );
-
-  const dataArr = new Uint8ClampedArray(width * height * 4);
-  webGLContext.readPixels(
-    0,
-    0,
-    width,
-    height,
-    webGLContext.RGBA,
-    webGLContext.UNSIGNED_BYTE,
-    dataArr,
-  );
-
-  webGLContext.deleteFramebuffer(frameBuffer);
-
-  return new ImageData(dataArr, width, height);
-}
+let addedPoints = false
 
 async function handDetectionLoop(
   xrSessionManager: Babylon.WebXRSessionManager,
-  handDetector: handPoseDetection.HandDetector,
+  handDetector: mediaPipe.HandLandmarker,
   currentFrame: XRFrame,
   renderingContext: WebGL2RenderingContext,
+  babylonScene: Babylon.Scene,
+  babylonEngine: Babylon.Engine,
 ) {
   const textChild = document.querySelector("#dom-overlay-text");
   if (!textChild) throw new Error("Could not find DOM Overlay");
@@ -116,7 +87,7 @@ async function handDetectionLoop(
 
   xrSessionManager.session.requestAnimationFrame((time, xrFrame) => {
     alertOnError(() =>
-      handDetectionLoop(xrSessionManager, handDetector, xrFrame, renderingContext),
+      handDetectionLoop(xrSessionManager, handDetector, xrFrame, renderingContext, babylonScene, babylonEngine),
     );
   });
 
@@ -134,20 +105,44 @@ async function handDetectionLoop(
       xrCamera.width,
       xrCamera.height,
     );
-    const [ estimationResults ] = await handDetector.estimateHands(imageData);
+    const estimationResults = handDetector.detect(imageData)
+    const [ handPoints ] = estimationResults.landmarks
 
-    if (estimationResults) {
-      textChild.textContent = `${estimationResults.handedness} - handedness detected`;
-    } else {
-      textChild.textContent = "No hands detected";
+    if (handPoints) {
+      addedPoints = true
+      addPointsToScene(babylonScene, babylonEngine, getPointsOfInterest(handPoints))
     }
   }
 }
 
-function alertOnError(func: () => Promise<void>) {
-  func().catch((e) => {
-    window.alert(e.message);
-  });
+type NamedLandmark = mediaPipe.NormalizedLandmark & { name: string }
+function getPointsOfInterest(landmarks: mediaPipe.NormalizedLandmark[]): NamedLandmark[] {
+  const targetInterestingLandmarks = [
+    // { idx: 8, name: 'INDEX_FINGER_TIP' }, 
+    // { idx: 7, name: 'INDEX_FINGER_DIP' }, 
+    // { idx: 6, name: 'INDEX_FINGER_PIP' },
+    { idx: 0, name: 'WRIST' },
+  ]
+
+  return targetInterestingLandmarks.map((targetLandmark) => {
+    return {
+      name: targetLandmark.name,
+      ...landmarks[targetLandmark.idx],
+    }
+  })
+}
+
+function addPointsToScene(scene: Babylon.Scene, engine: Babylon.Engine, landmarks: NamedLandmark[]) {
+  for(const landmark of landmarks) {
+    const transformedCoordinates = screenToWorld(landmark.x, landmark.y, landmark.z, engine, scene)
+
+    const dot = scene.getMeshByName(landmark.name)  ??
+      Babylon.CreateSphere(landmark.name, {
+        diameter: 0.25,
+      }, scene)
+
+    dot.position = transformedCoordinates
+  }
 }
 
 async function main() {
@@ -163,10 +158,11 @@ async function main() {
   babylonEngine.runRenderLoop(babylonScene.render.bind(babylonScene));
   window.addEventListener("resize", () => babylonEngine.resize());
 
-  const handDetector = await handPoseDetection.createDetector(
-    handPoseDetection.SupportedModels.MediaPipeHands,
-    { runtime: "tfjs", maxHands: 1 },
-  );
+  const visionModel = await mediaPipe.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm")
+  const mediaPipeHandDetection = await mediaPipe.HandLandmarker.createFromOptions(
+    visionModel,
+    { numHands: 1, }
+  )
 
   const xrSessionManager = babylonXRBase.baseExperience.sessionManager;
   const xrSessionInitObserver = xrSessionManager.onXRSessionInit.addOnce(
@@ -176,7 +172,7 @@ async function main() {
         if (!canvasContext) throw new Error("Cannot get canvas context");
 
         alertOnError(() =>
-          handDetectionLoop(xrSessionManager, handDetector, xrFrame, canvasContext),
+          handDetectionLoop(xrSessionManager, mediaPipeHandDetection, xrFrame, canvasContext, babylonScene, babylonEngine),
         );
       });
     },
