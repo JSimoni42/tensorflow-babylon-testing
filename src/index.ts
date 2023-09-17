@@ -94,17 +94,14 @@ function convertGLTextureToImage(
   return new ImageData(dataArr, width, height);
 }
 
-async function detectHands(
+async function handDetectionLoop(
   xrSessionManager: Babylon.WebXRSessionManager,
   handDetector: handPoseDetection.HandDetector,
   currentFrame: XRFrame,
-  canvas: HTMLCanvasElement,
+  renderingContext: WebGL2RenderingContext,
 ) {
   const textChild = document.querySelector("#dom-overlay-text");
   if (!textChild) throw new Error("Could not find DOM Overlay");
-
-  const renderingContext = canvas.getContext("webgl2");
-  if (!renderingContext) throw new Error("Could not obtain rendering context");
 
   const referenceSpace = xrSessionManager.referenceSpace;
 
@@ -119,7 +116,7 @@ async function detectHands(
 
   xrSessionManager.session.requestAnimationFrame((time, xrFrame) => {
     alertOnError(() =>
-      detectHands(xrSessionManager, handDetector, xrFrame, canvas),
+      handDetectionLoop(xrSessionManager, handDetector, xrFrame, renderingContext),
     );
   });
 
@@ -137,10 +134,10 @@ async function detectHands(
       xrCamera.width,
       xrCamera.height,
     );
-    const estimationResults = await handDetector.estimateHands(imageData);
+    const [ estimationResults ] = await handDetector.estimateHands(imageData);
 
-    if (estimationResults[0]) {
-      textChild.textContent = `${estimationResults[0].handedness} - handedness detected`;
+    if (estimationResults) {
+      textChild.textContent = `${estimationResults.handedness} - handedness detected`;
     } else {
       textChild.textContent = "No hands detected";
     }
@@ -168,15 +165,18 @@ async function main() {
 
   const handDetector = await handPoseDetection.createDetector(
     handPoseDetection.SupportedModels.MediaPipeHands,
-    { runtime: "tfjs" },
+    { runtime: "tfjs", maxHands: 1 },
   );
 
   const xrSessionManager = babylonXRBase.baseExperience.sessionManager;
   const xrSessionInitObserver = xrSessionManager.onXRSessionInit.addOnce(
     (xrSession) => {
       xrSession.requestAnimationFrame((timestamp, xrFrame) => {
+        const canvasContext = canvas.getContext("webgl2");
+        if (!canvasContext) throw new Error("Cannot get canvas context");
+
         alertOnError(() =>
-          detectHands(xrSessionManager, handDetector, xrFrame, canvas),
+          handDetectionLoop(xrSessionManager, handDetector, xrFrame, canvasContext),
         );
       });
     },
