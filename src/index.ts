@@ -1,8 +1,11 @@
-import * as mediaPipe from "@mediapipe/tasks-vision"
+import { FilesetResolver, HandLandmarker, NormalizedLandmark } from "@mediapipe/tasks-vision"
 import * as Babylon from "@babylonjs/core";
 
 import { alertOnError } from './utils'
 import { convertGLTextureToImage, screenToWorld } from './babylon-utils'
+
+const visionWasmURL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+const handLandmarkerTaskURL = "https://storage.googleapis.com/mediapipe-assets/hand_landmarker.task"
 
 async function createBabylonScene(
   engine: Babylon.Engine,
@@ -24,6 +27,19 @@ async function createBabylonScene(
     scene,
   );
   light.intensity = 0.7;
+
+  Babylon.CreateLineSystem("axes", {
+    lines: [
+      [ new Babylon.Vector3(-10, 0, 0), new Babylon.Vector3(10, 0, 0)],
+      [ new Babylon.Vector3(0, -10, 0), new Babylon.Vector3(0, 10, 0)],
+      [ new Babylon.Vector3(0, 0, -10), new Babylon.Vector3(0, 0, 10)],
+    ],
+    colors: [
+      [ new Babylon.Color4(1), new Babylon.Color4(1) ],
+      [ new Babylon.Color4(0, 1),  new Babylon.Color4(0, 1)  ],
+      [ new Babylon.Color4(0, 0, 1),  new Babylon.Color4(0, 0, 1)  ],
+    ]
+  })
 
   const xr = await scene.createDefaultXRExperienceAsync({
     uiOptions: {
@@ -65,12 +81,14 @@ let addedPoints = false
 
 async function handDetectionLoop(
   xrSessionManager: Babylon.WebXRSessionManager,
-  handDetector: mediaPipe.HandLandmarker,
+  handDetector: HandLandmarker,
   currentFrame: XRFrame,
   renderingContext: WebGL2RenderingContext,
   babylonScene: Babylon.Scene,
   babylonEngine: Babylon.Engine,
 ) {
+  if (addedPoints) return
+
   const textChild = document.querySelector("#dom-overlay-text");
   if (!textChild) throw new Error("Could not find DOM Overlay");
 
@@ -109,14 +127,14 @@ async function handDetectionLoop(
     const [ handPoints ] = estimationResults.landmarks
 
     if (handPoints) {
-      addedPoints = true
       addPointsToScene(babylonScene, babylonEngine, getPointsOfInterest(handPoints))
+      addedPoints = true
     }
   }
 }
 
-type NamedLandmark = mediaPipe.NormalizedLandmark & { name: string }
-function getPointsOfInterest(landmarks: mediaPipe.NormalizedLandmark[]): NamedLandmark[] {
+type NamedLandmark = NormalizedLandmark & { name: string }
+function getPointsOfInterest(landmarks: NormalizedLandmark[]): NamedLandmark[] {
   const targetInterestingLandmarks = [
     // { idx: 8, name: 'INDEX_FINGER_TIP' }, 
     // { idx: 7, name: 'INDEX_FINGER_DIP' }, 
@@ -158,10 +176,15 @@ async function main() {
   babylonEngine.runRenderLoop(babylonScene.render.bind(babylonScene));
   window.addEventListener("resize", () => babylonEngine.resize());
 
-  const visionModel = await mediaPipe.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm")
-  const mediaPipeHandDetection = await mediaPipe.HandLandmarker.createFromOptions(
+  const visionModel = await FilesetResolver.forVisionTasks(visionWasmURL)
+  const mediaPipeHandDetection = await HandLandmarker.createFromOptions(
     visionModel,
-    { numHands: 1, }
+    { 
+      numHands: 1, 
+      baseOptions: {
+        modelAssetPath: handLandmarkerTaskURL,
+      },
+    }
   )
 
   const xrSessionManager = babylonXRBase.baseExperience.sessionManager;

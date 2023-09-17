@@ -1,11 +1,20 @@
 import { Engine, Scene, Vector3, Matrix } from '@babylonjs/core'
 
 export function screenToWorld(x: number, y: number, z: number, engine: Engine, scene: Scene): Vector3 {
-  const screenPosition = new Vector3(x, y, z)
+  const renderWidth = engine.getRenderWidth()
+  const renderHeight = engine.getRenderHeight()
+
+  // These points are normalized from 0 to 1.0. They need to be denormalized.
+  const screenPosition = new Vector3(
+    x * renderWidth, 
+    y * renderHeight, 
+    z,
+  )
+
   const vector = Vector3.Unproject(
     screenPosition,
-    engine.getRenderWidth(),
-    engine.getRenderHeight(),
+    renderWidth,
+    renderHeight,
     Matrix.Identity(),
     scene.getViewMatrix(),
     scene.getProjectionMatrix()
